@@ -1,0 +1,22 @@
+{
+  "name": "SlackerMOO",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "true"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diwo/SlackerMOO.git"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/diwo/SlackerMOO/issues"
+  },
+  "homepage": "https://github.com/diwo/SlackerMOO#readme",
+  "dependencies": {
+    "@slack/client": "^3.10.0"
+  }
+}
