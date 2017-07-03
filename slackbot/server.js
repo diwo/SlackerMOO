@@ -1,28 +1,14 @@
-var fs = require('fs');
-var RtmClient = require('@slack/client').RtmClient;
-var CLIENT_EVENTS = require('@slack/client').CLIENT_EVENTS;
-var RTM_EVENTS = require('@slack/client').RTM_EVENTS;
+'use strict';
 
-var botTokenPath = './bot-access-token.secret';
-var botToken = fs.readFileSync(botTokenPath, 'UTF-8').trim();
+const fs = require('fs');
+const SlackerMoo = require('./slackermoo');
 
-var rtm = new RtmClient(botToken);
+// TODO: config file
+const slackBotTokenPath = './slack-bot-token.secret';
+const mooServerAddress = 'localhost:7777';
 
-rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, function() {
-  console.log('RTM authenticated!');
-});
+var slackBotToken = fs.readFileSync(slackBotTokenPath, 'UTF-8').trim();
 
-rtm.on(RTM_EVENTS.MESSAGE, function(messageData) {
-  var {channel, user:userId, text} = messageData;
+var moo = new SlackerMoo(slackBotToken, mooServerAddress);
 
-  var isDirectMessage = channel.match(/^D/);
-  if (isDirectMessage) {
-    var name = rtm.dataStore.users[userId].profile.first_name;
-    var reply =
-      `Hello ${name}, you said:\n` +
-      '```' + text + '```';
-    rtm.sendMessage(reply, channel);
-  }
-});
-
-rtm.start();
+moo.start();
