@@ -25,5 +25,10 @@
   },
   "devDependencies": {
     "jshint": "^2.9.5"
+  },
+  "jshintConfig": {
+    "strict": "global",
+    "esversion": 6,
+    "node": true
   }
 }
