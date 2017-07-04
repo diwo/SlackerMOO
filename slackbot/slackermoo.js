@@ -6,20 +6,23 @@ const Moo = require('./moo');
 function SlackerMoo(slackApiToken, mooServerAddress) {
   this.slack = new Slack(slackApiToken);
   this.moo = new Moo(mooServerAddress);
+  this.mooDataBuffer = {};
 
   this._init();
 }
 
 SlackerMoo.prototype._init = function() {
-  var slack = this.slack;
-  var moo = this.moo;
-
-  slack.on(Slack.EVENTS.DM_RECEIVED, function(text, userProfile) {
-    moo.send(userProfile.name, text);
+  this.slack.on(Slack.EVENTS.DM_RECEIVED, (text, userProfile) => {
+    this.moo.send(userProfile.name, text);
   });
 
-  moo.on(Moo.EVENTS.DATA, function(user, data) {
-    slack.send(user, data);
+  this.moo.on(Moo.EVENTS.DATA, (user, data) => {
+    var dataBuffer = this.mooDataBuffer[user] || '';
+    dataBuffer += data;
+    var flushIdx = dataBuffer.lastIndexOf('\n');
+
+    this.slack.send(user, dataBuffer.substr(0, flushIdx));
+    this.mooDataBuffer[user] = dataBuffer.substr(flushIdx + 1);
   });
 };
 

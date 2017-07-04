@@ -68,22 +68,23 @@ Slack.prototype._processMessageQueue = function(user, previousMessage) {
     return null;
   }
 
-  var text = '';
-  if (previousMessage) {
-    text = previousMessage.text;
-    if (!isWithinMessageSizeLimit(text, processor.queue.peekFront())) {
-      // Existing message too long to append to, start new message
-      return this._processMessageQueue(user);
-    }
+  var useExistingMessage = previousMessage;
+  if (useExistingMessage &&
+      !isWithinMessageSizeLimit(previousMessage.text, processor.queue.peekFront())) {
+    useExistingMessage = false;
   }
 
+  var text = useExistingMessage ? previousMessage.text : '';
   while (!processor.queue.isEmpty() &&
       isWithinMessageSizeLimit(text, processor.queue.peekFront())) {
-    text += '\n' + processor.queue.shift();
+    if (text) {
+      text += '\n';
+    }
+    text += processor.queue.shift();
   }
 
   var process;
-  if (previousMessage) {
+  if (useExistingMessage) {
     process = this.rtm.updateMessage({
       ts: previousMessage.ts,
       channel: this.userChannels[user],
@@ -93,7 +94,12 @@ Slack.prototype._processMessageQueue = function(user, previousMessage) {
     process = this.rtm.sendMessage(decorateMessageText(text), this.userChannels[user]);
   }
 
-  return process.then(({ts}) => this._processMessageQueue(user, {ts, text}));
+  return process.then(
+    ({ts}) => this._processMessageQueue(user, {ts, text}),
+    err => {
+      console.error(err);
+      this.userMessageProcessors[user] = null;
+    });
 };
 
 Slack.prototype._getUserMessageProcessor = function(user) {
@@ -114,7 +120,11 @@ function isWithinMessageSizeLimit(...parts) {
     [...parts, MESSAGE_PREFIX, MESSAGE_SUFFIX]
       .map(part => part.length)
       .reduce((sum, val) => sum + val + 1);
-  return messageSize <= MESSAGE_CHAR_LIMIT;
+
+  // The message will be expanded by Slack with markup,
+  // which may put the message over the size limit.
+  // Leaving some room for expansion and hope it doesn't go over...
+  return messageSize <= MESSAGE_CHAR_LIMIT * 0.85;
 }
 
 function decorateMessageText(text) {

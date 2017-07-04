@@ -36,7 +36,7 @@ Moo.prototype.getSocket = function(user) {
     socket.setEncoding('utf8');
     socket.on('data', function(data) {
       self.eventHandlers.DATA
-        .forEach(handler => handler(user, data));
+        .forEach(handler => handler(user, data.replace(/\r/g, '')));
     });
     self.connections[user] = socket;
     socket.connect(self.port, self.host, () => resolve(socket));
