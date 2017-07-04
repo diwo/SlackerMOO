@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "test": "true",
-    "lint": "jshint *.js"
+    "lint": "jshint *.js",
+    "inspect": "node --inspect server.js"
   },
   "repository": {
     "type": "git",
@@ -19,6 +20,7 @@
   "homepage": "https://github.com/diwo/SlackerMOO#readme",
   "dependencies": {
     "@slack/client": "^3.10.0",
+    "double-ended-queue": "^2.1.0-0",
     "ramda": "^0.24.1"
   },
   "devDependencies": {

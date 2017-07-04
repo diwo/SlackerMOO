@@ -14,13 +14,12 @@ SlackerMoo.prototype._init = function() {
   var slack = this.slack;
   var moo = this.moo;
 
-  slack.on(Slack.EVENTS.DM_RECEIVED, function(message, userProfile) {
-    moo.userSend(userProfile.name, message);
+  slack.on(Slack.EVENTS.DM_RECEIVED, function(text, userProfile) {
+    moo.send(userProfile.name, text);
   });
 
   moo.on(Moo.EVENTS.DATA, function(user, data) {
-    var message = '```' + data + '```';
-    slack.sendMessage(user, message);
+    slack.send(user, data);
   });
 };
 

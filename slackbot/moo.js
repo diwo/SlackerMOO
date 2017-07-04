@@ -50,7 +50,7 @@ Moo.prototype.disconnect = function(user) {
   }
 };
 
-Moo.prototype.userSend = function(user, input) {
+Moo.prototype.send = function(user, input) {
   this.getSocket(user).then(socket => socket.write(`${input}\n`));
 };
 
