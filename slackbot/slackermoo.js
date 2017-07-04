@@ -13,7 +13,7 @@ function SlackerMoo(slackApiToken, mooServerAddress) {
 
 SlackerMoo.prototype._init = function() {
   this.slack.on(Slack.EVENTS.DM_RECEIVED, (text, userProfile) => {
-    this.moo.send(userProfile.name, text);
+    this.moo.send(userProfile.name, toAscii(text));
   });
 
   this.moo.on(Moo.EVENTS.DATA, (user, data) => {
@@ -25,6 +25,19 @@ SlackerMoo.prototype._init = function() {
     this.mooDataBuffer[user] = dataBuffer.substr(flushIdx + 1);
   });
 };
+
+function toAscii(text) {
+  const mappings = [
+    { from: '“', to: '"', comment: 'Left double quotation mark' },
+    { from: '”', to: '"', comment: 'Right double quotation mark' },
+    { from: '‘', to: '\'', comment: 'Left single quotation mark' },
+    { from: '’', to: '\'', comment: 'Right single quotation mark' }
+  ];
+
+  return mappings
+    .map(mapping => text => text.replace(RegExp(mapping.from, 'g'), mapping.to))
+    .reduce((accum, transform) => transform(accum), text);
+}
 
 SlackerMoo.prototype.start = function() {
   this.slack.start();
