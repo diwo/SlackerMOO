@@ -31,7 +31,10 @@ function toAscii(text) {
     { from: '“', to: '"', comment: 'Left double quotation mark' },
     { from: '”', to: '"', comment: 'Right double quotation mark' },
     { from: '‘', to: '\'', comment: 'Left single quotation mark' },
-    { from: '’', to: '\'', comment: 'Right single quotation mark' }
+    { from: '’', to: '\'', comment: 'Right single quotation mark' },
+    { from: '&lt;', to: '<', comment: 'Less-than sign' },
+    { from: '&gt;', to: '>', comment: 'Greater-than sign' },
+    { from: '&amp;', to: '&', comment: 'Ampersand' }
   ];
 
   return mappings
