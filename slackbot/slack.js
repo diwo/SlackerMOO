@@ -21,18 +21,16 @@ function Slack(apiToken) {
 }
 
 Slack.prototype._init = function() {
-  var self = this;
-
-  self.rtm.on(slack.CLIENT_EVENTS.RTM.AUTHENTICATED, function() {
+  this.rtm.on(slack.CLIENT_EVENTS.RTM.AUTHENTICATED, () => {
     console.log('RTM authenticated!');
   });
 
-  self.rtm.on(slack.RTM_EVENTS.MESSAGE, function({channel, user:userId, text, subtype}) {
-    var user = self.rtm.dataStore.users[userId];
+  this.rtm.on(slack.RTM_EVENTS.MESSAGE, ({channel, user:userId, text, subtype}) => {
+    var user = this.rtm.dataStore.users[userId];
 
     var isDirectMessage = channel.match(/^D/);
     if (isDirectMessage && !subtype) {
-      self.userChannels[user.name] = channel;
+      this.userChannels[user.name] = channel;
 
       var userProfile = {
         id: user.id,
@@ -43,8 +41,10 @@ Slack.prototype._init = function() {
         last_name: user.profile.last_name
       };
 
-      self.eventHandlers.DM_RECEIVED
+      this.eventHandlers.DM_RECEIVED
         .forEach(handler => handler(text, userProfile));
+
+      this._startNewMessage(user.name);
     }
   });
 };
@@ -61,20 +61,20 @@ Slack.prototype.send = function(user, text) {
   }
 };
 
-Slack.prototype._processMessageQueue = function(user, previousMessage) {
+Slack.prototype._processMessageQueue = function(user) {
   var processor = this._getUserMessageProcessor(user);
   if (processor.queue.isEmpty()) {
     processor.process = null;
     return null;
   }
 
-  var useExistingMessage = previousMessage;
+  var useExistingMessage = processor.previousMessage;
   if (useExistingMessage &&
-      !isWithinMessageSizeLimit(previousMessage.text, processor.queue.peekFront())) {
+      !isWithinMessageSizeLimit(processor.previousMessage.text, processor.queue.peekFront())) {
     useExistingMessage = false;
   }
 
-  var text = useExistingMessage ? previousMessage.text : '';
+  var text = useExistingMessage ? processor.previousMessage.text : '';
   while (!processor.queue.isEmpty() &&
       isWithinMessageSizeLimit(text, processor.queue.peekFront())) {
     if (text) {
@@ -86,7 +86,7 @@ Slack.prototype._processMessageQueue = function(user, previousMessage) {
   var process;
   if (useExistingMessage) {
     process = this.rtm.updateMessage({
-      ts: previousMessage.ts,
+      ts: processor.previousMessage.ts,
       channel: this.userChannels[user],
       text: decorateMessageText(text)
     });
@@ -95,7 +95,10 @@ Slack.prototype._processMessageQueue = function(user, previousMessage) {
   }
 
   return process.then(
-    ({ts}) => this._processMessageQueue(user, {ts, text}),
+    ({ts}) => {
+      processor.previousMessage = {ts, text};
+      return this._processMessageQueue(user);
+    },
     err => {
       console.error(err);
       this.userMessageProcessors[user] = null;
@@ -107,11 +110,16 @@ Slack.prototype._getUserMessageProcessor = function(user) {
   if (!processor) {
     processor = {
       queue: new Deque(),
-      process: null
+      process: null,
+      previousMessage: null
     };
     this.userMessageProcessors[user] = processor;
   }
   return processor;
+};
+
+Slack.prototype._startNewMessage = function(user) {
+  this._getUserMessageProcessor(user).previousMessage = null;
 };
 
 function isWithinMessageSizeLimit(...parts) {
