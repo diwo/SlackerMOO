@@ -1,0 +1,4 @@
+{
+  "slackBotTokenFile": "slack-bot-token.secret",
+  "mooServerAddress": "localhost:7777"
+}

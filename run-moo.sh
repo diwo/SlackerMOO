@@ -1,13 +1,21 @@
 #!/bin/bash
 
+IMAGE=slackermoo/stunt
+CONTAINER=slackermoo-moo
+VOLUME=slackermoo-moo-data
+
 cd "$(dirname "$0")"
+cd moo
 
-docker build -t slackmoo/stunt moo
-
-if [ -n "$(docker ps -qf name=moo)" ]; then
+if [ -n "$(docker ps -qf name=$CONTAINER)" ]; then
   >&2 echo "Error: Moo is already running"
   exit 1
 fi
 
-docker rm moo
-exec docker run -it -p 7777:7777 -v moo-data:/data --name moo slackmoo/stunt
+docker rm $CONTAINER
+docker build -t $IMAGE .
+exec docker run -it \
+  --name $CONTAINER \
+  -p 7777:7777 \
+  -v $VOLUME:/data \
+  $IMAGE

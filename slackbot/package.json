@@ -6,7 +6,8 @@
   "scripts": {
     "test": "true",
     "lint": "jshint *.js",
-    "inspect": "node --inspect server.js"
+    "start": "node src/server.js",
+    "inspect": "node --inspect src/server.js"
   },
   "repository": {
     "type": "git",
