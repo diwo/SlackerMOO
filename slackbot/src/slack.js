@@ -69,7 +69,7 @@ Slack.prototype._processMessageQueue = function(user) {
   }
 
   var useExistingMessage = processor.previousMessage;
-  if (useExistingMessage &&
+  if (processor.previousMessage &&
       !isWithinMessageSizeLimit(processor.previousMessage.text, processor.queue.peekFront())) {
     useExistingMessage = false;
   }

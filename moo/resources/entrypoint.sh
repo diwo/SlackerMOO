@@ -28,8 +28,8 @@ if [ -n "$INIT_DB" ]; then
     done
 
     for SCRIPT in $(ls -1 /usr/local/lib/moo/scripts/init/*.moo); do
-      SCRIPT_MAME="$(basename "$SCRIPT")"
-      run-script.sh localhost "$PORT" wizard "" < "$SCRIPT" | sed "s:^:$SCRIPT_MAME | :"
+      SCRIPT_NAME="$(basename "$SCRIPT")"
+      run-script.sh localhost "$PORT" wizard "" < "$SCRIPT" | sed "s:^:$SCRIPT_NAME | :"
     done
   } &
 fi

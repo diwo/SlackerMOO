@@ -8,7 +8,7 @@ const EVENTS = ['DATA'];
 function Moo(serverAddress) {
   var [host, port] = serverAddress.split(':');
   if (!host || !port) {
-    throw Error(`Invalid MOO server address '${serverAddress}`);
+    throw Error(`Invalid MOO server address '${serverAddress}'`);
   }
 
   this.host = host;
