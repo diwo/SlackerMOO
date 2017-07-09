@@ -8,18 +8,21 @@ DB_NEW="${DB_NAME}.db"
 DB_OLD="${DB_NAME}.old.db"
 LOG="${DB_NAME}.log"
 
+DEFAULT_CORE="JHCore"
+
 if [ -e "$DB_NEW" ]; then
+  # Cycle db files
   mv "$DB_NEW" "$DB_OLD"
   DB_SOURCE="$DB_OLD"
 elif [ -e "$DB_OLD" ]; then
   # Server must have crashed last run and db not flushed to disk
   DB_SOURCE="$DB_OLD"
-elif [ -z "$INIT_DB" ]; then
-  # No existing db, no init db specified, use default
-  INIT_DB="LambdaCore"
-fi
+else
+  # No existing db, init with a core db
+  if [ -z "$INIT_DB" ]; then
+    INIT_DB="$DEFAULT_CORE"
+  fi
 
-if [ -n "$INIT_DB" ]; then
   DB_SOURCE="${INIT_DB}.db"
   test -e "$DB_SOURCE" || gunzip -c "/usr/local/lib/moo/cores/${DB_SOURCE}.gz" > "$DB_SOURCE"
 
