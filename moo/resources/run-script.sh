@@ -13,14 +13,11 @@ test -z "$USER" && {
   exit 1
 }
 
+payload() {
+ echo connect "$USER" "$PASS"
+ cat "$SCRIPT"
+ echo @quit
+}
 
-{ echo connect "$USER" "$PASS"
-
-  if [ -e "$SCRIPT" ]; then
-    cat "$SCRIPT"
-  else
-    cat -
-  fi
-
-  echo @quit
-} | nc -q30 "$SERVER" "$PORT"
+payload | sed 's/^/> /'
+payload | nc -q30 "$SERVER" "$PORT"
