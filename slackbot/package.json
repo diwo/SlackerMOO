@@ -2,10 +2,10 @@
   "name": "SlackerMOO",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
     "test": "true",
-    "lint": "jshint *.js",
+    "lint": "find src/ -name '*.js' | xargs jshint",
     "start": "node src/server.js",
     "inspect": "node --inspect src/server.js"
   },
@@ -30,6 +30,7 @@
   "jshintConfig": {
     "strict": "global",
     "esversion": 6,
-    "node": true
+    "node": true,
+    "unused": true
   }
 }

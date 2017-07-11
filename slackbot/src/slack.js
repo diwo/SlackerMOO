@@ -2,7 +2,8 @@
 
 const slack = require('@slack/client');
 const R = require('ramda');
-const Deque = require('double-ended-queue');
+
+const BufferedWorker = require('./util/buffered-worker');
 
 const EVENTS = ['DM_RECEIVED'];
 const MESSAGE_CHAR_LIMIT = 4000;
@@ -11,8 +12,7 @@ const MESSAGE_SUFFIX = '```';
 
 function Slack(apiToken) {
   this.rtm = new slack.RtmClient(apiToken);
-  this.userChannels = {};
-  this.userMessageProcessors = {};
+  this.userInfos = {};
   this.eventHandlers = R.zipObj(
     EVENTS,
     EVENTS.map(() => []));
@@ -30,7 +30,9 @@ Slack.prototype._init = function() {
 
     var isDirectMessage = channel.match(/^D/);
     if (isDirectMessage && !subtype) {
-      this.userChannels[user.name] = channel;
+      var userInfo = this._getUserInfo(user.name);
+      userInfo.channel = channel;
+      userInfo.startNewMessage = true;
 
       var userProfile = {
         id: user.id,
@@ -43,8 +45,6 @@ Slack.prototype._init = function() {
 
       this.eventHandlers.DM_RECEIVED
         .forEach(handler => handler(text, userProfile));
-
-      this._startNewMessage(user.name);
     }
   });
 };
@@ -54,72 +54,72 @@ Slack.prototype.on = function(event, cb) {
 };
 
 Slack.prototype.send = function(user, text) {
-  var processor = this._getUserMessageProcessor(user);
-  Deque.prototype.push.apply(processor.queue, text.split('\n'));
-  if (!processor.process) {
-    processor.process = this._processMessageQueue(user);
+  var userInfo = this._getUserInfo(user);
+
+  var worker = userInfo.messageWorker;
+  if (!worker) {
+    worker = new BufferedWorker({
+      extract: workerExtract(() => userInfo.startNewMessage),
+      execute: workerExecute(this.rtm, userInfo.channel, () => {
+        userInfo.startNewMessage = false;
+      })
+    });
+    userInfo.messageWorker = worker;
   }
+
+  worker.enqueue(...text.split('\n'));
 };
 
-Slack.prototype._processMessageQueue = function(user) {
-  var processor = this._getUserMessageProcessor(user);
-  if (processor.queue.isEmpty()) {
-    processor.process = null;
-    return null;
-  }
-
-  var useExistingMessage = processor.previousMessage;
-  if (processor.previousMessage &&
-      !isWithinMessageSizeLimit(processor.previousMessage.text, processor.queue.peekFront())) {
-    useExistingMessage = false;
-  }
-
-  var text = useExistingMessage ? processor.previousMessage.text : '';
-  while (!processor.queue.isEmpty() &&
-      isWithinMessageSizeLimit(text, processor.queue.peekFront())) {
-    if (text) {
-      text += '\n';
+function workerExtract(isStartNewMessage) {
+  return function(queue, previous) {
+    var useExistingMessage = !isStartNewMessage() && previous;
+    if (previous && !isWithinMessageSizeLimit(previous.payload.text, queue.peek())) {
+      useExistingMessage = false;
     }
-    text += processor.queue.shift();
-  }
 
-  var process;
-  if (useExistingMessage) {
-    process = this.rtm.updateMessage({
-      ts: processor.previousMessage.ts,
-      channel: this.userChannels[user],
-      text: decorateMessageText(text)
-    });
-  } else {
-    process = this.rtm.sendMessage(decorateMessageText(text), this.userChannels[user]);
-  }
+    var text = useExistingMessage ? previous.payload.text : '';
+    while (!queue.isEmpty() && isWithinMessageSizeLimit(text, queue.peek())) {
+      if (text) {
+        text += '\n';
+      }
+      text += queue.pop();
+    }
 
-  return process.then(
-    ({ts}) => {
-      processor.previousMessage = {ts, text};
-      return this._processMessageQueue(user);
-    },
-    err => {
-      console.error(err);
-      this.userMessageProcessors[user] = null;
-    });
-};
+    return {text, useExistingMessage};
+  };
+}
 
-Slack.prototype._getUserMessageProcessor = function(user) {
-  var processor = this.userMessageProcessors[user];
-  if (!processor) {
-    processor = {
-      queue: new Deque(),
-      process: null,
-      previousMessage: null
+function workerExecute(rtm, channel, callback) {
+  return function(payload, previous) {
+    var {text, useExistingMessage} = payload;
+
+    var execution;
+    if (useExistingMessage) {
+      execution = rtm.updateMessage({
+        ts: previous.result.ts,
+        channel: channel,
+        text: decorateMessageText(text)
+      });
+    } else {
+      execution = rtm.sendMessage(decorateMessageText(text), channel);
+    }
+
+    callback();
+    return execution;
+  };
+}
+
+Slack.prototype._getUserInfo = function(user) {
+  var userInfo = this.userInfos[user];
+  if (!userInfo) {
+    userInfo = {
+      channel: null,
+      messageWorker: null,
+      startNewMessage: null
     };
-    this.userMessageProcessors[user] = processor;
+    this.userInfos[user] = userInfo;
   }
-  return processor;
-};
-
-Slack.prototype._startNewMessage = function(user) {
-  this._getUserMessageProcessor(user).previousMessage = null;
+  return userInfo;
 };
 
 function isWithinMessageSizeLimit(...parts) {
