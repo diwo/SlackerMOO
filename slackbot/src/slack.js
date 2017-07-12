@@ -56,18 +56,18 @@ Slack.prototype.on = function(event, cb) {
 Slack.prototype.send = function(user, text) {
   var userInfo = this._getUserInfo(user);
 
-  var worker = userInfo.messageWorker;
-  if (!worker) {
-    worker = new BufferedWorker({
+  var sender = userInfo.messageSender;
+  if (!sender) {
+    sender = new BufferedWorker({
       extract: workerExtract(() => userInfo.startNewMessage),
       execute: workerExecute(this.rtm, userInfo.channel, () => {
         userInfo.startNewMessage = false;
       })
     });
-    userInfo.messageWorker = worker;
+    userInfo.messageSender = sender;
   }
 
-  worker.enqueue(...text.split('\n'));
+  sender.enqueue(...text.split('\n'));
 };
 
 function workerExtract(isStartNewMessage) {
@@ -114,7 +114,7 @@ Slack.prototype._getUserInfo = function(user) {
   if (!userInfo) {
     userInfo = {
       channel: null,
-      messageWorker: null,
+      messageSender: null,
       startNewMessage: null
     };
     this.userInfos[user] = userInfo;

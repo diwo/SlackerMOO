@@ -18,25 +18,28 @@ BufferedWorker.prototype.enqueue = function(...data) {
 };
 
 BufferedWorker.prototype._work = function() {
-  if (this.queue.isEmpty()) {
-    this.task = null;
-    return null;
-  }
-
-  var payload = this.extract(readOnlyQueue(this.queue), this.previous);
-  var execution = this.execute(payload, this.previous);
-
-  return Promise.resolve(execution).then(
-    result => {
-      this.previous = {payload, result};
-      return this._work();
-    },
-    error => {
-      console.error(error);
-      this.queue.clear();
+  // Promise.resolve() so that method returns right away
+  return Promise.resolve().then(() => {
+    if (this.queue.isEmpty()) {
       this.task = null;
-      this.previous = null;
-    });
+      return null;
+    }
+
+    var payload = this.extract(readOnlyQueue(this.queue), this.previous);
+    var execution = this.execute(payload, this.previous);
+
+    return Promise.resolve(execution).then(
+      result => {
+        this.previous = {payload, result};
+        return this._work();
+      },
+      error => {
+        console.error(error);
+        this.queue.clear();
+        this.task = null;
+        this.previous = null;
+      });
+  });
 };
 
 function readOnlyQueue(deque) {

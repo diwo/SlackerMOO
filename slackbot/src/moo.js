@@ -1,66 +1,64 @@
 'use strict';
 
-const net = require('net');
 const R = require('ramda');
+
+const Session = require('./session');
+const BufferedWorker = require('./util/buffered-worker');
 
 const EVENTS = ['DATA'];
 
-function Moo(serverAddress) {
-  var [host, port] = serverAddress.split(':');
+function Moo(connectionString) {
+  var [host, port] = connectionString.split(':');
   if (!host || !port) {
-    throw Error(`Invalid MOO server address '${serverAddress}'`);
+    throw Error(`Invalid MOO server address '${connectionString}'`);
   }
 
   this.host = host;
   this.port = port;
-  this.connections = {};
   this.eventHandlers = R.zipObj(
     EVENTS,
     EVENTS.map(() => []));
+  this.sendBuffers = {};
+  this.sessions = {};
 }
 
 Moo.prototype.on = function(event, cb) {
   this.eventHandlers[event].push(cb);
 };
 
-Moo.prototype.getSocket = function(user) {
-  var self = this;
-
-  return new Promise(function(resolve) {
-    if (self.connected(user)) {
-      resolve(self.connections[user]);
-      return;
-    }
-
-    var socket = new net.Socket();
-    socket.setEncoding('utf8');
-    socket.on('data', function(data) {
-      self.eventHandlers.DATA
-        .forEach(handler => handler(user, data.replace(/\r/g, '')));
-    });
-    self.connections[user] = socket;
-    socket.connect(self.port, self.host, () => resolve(socket));
-  });
-};
-
-Moo.prototype.disconnect = function(user) {
-  if (this.connected(user)) {
-    this.connections[user].end();
-    this.connections[user] = null;
-  }
-};
-
 Moo.prototype.send = function(user, input) {
-  this.getSocket(user).then(socket => socket.write(`${input}\n`));
+  var buffer = this.sendBuffers[user];
+  if (!buffer) {
+    buffer = new BufferedWorker({
+      extract: queue => queue.pop(),
+      execute: payload =>
+        this._getSession(user)
+          .then(session => session.send(payload))
+    });
+    this.sendBuffers[user] = buffer;
+  }
+  buffer.enqueue(input);
 };
 
-Moo.prototype.connected = function(user) {
-  var socket = this.connections[user];
-  if (socket && !socket.destroyed) {
-    return true;
+Moo.prototype._getSession = function(user) {
+  var session = this.sessions[user];
+  if (!session) {
+    // TODO: resolve playerName from moo db
+    session = Promise.resolve(user)
+      .then(playerName => {
+        var session = new Session(playerName, {
+          host: this.host,
+          port: this.port
+        });
+        session.on(Session.EVENTS.DATA, data => {
+          this.eventHandlers.DATA
+            .forEach(handler => handler(user, data));
+        });
+        return session;
+      });
+    this.sessions[user] = session;
   }
-  this.connections[user] = null;
-  return false;
+  return session;
 };
 
 Moo.EVENTS = R.zipObj(EVENTS, EVENTS);

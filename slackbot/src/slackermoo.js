@@ -6,7 +6,6 @@ const Moo = require('./moo');
 function SlackerMoo(slackApiToken, mooServerAddress) {
   this.slack = new Slack(slackApiToken);
   this.moo = new Moo(mooServerAddress);
-  this.mooDataBuffer = {};
 
   this._init();
 }
@@ -17,12 +16,7 @@ SlackerMoo.prototype._init = function() {
   });
 
   this.moo.on(Moo.EVENTS.DATA, (user, data) => {
-    var dataBuffer = this.mooDataBuffer[user] || '';
-    dataBuffer += data;
-    var flushIdx = dataBuffer.lastIndexOf('\n');
-
-    this.slack.send(user, dataBuffer.substr(0, flushIdx));
-    this.mooDataBuffer[user] = dataBuffer.substr(flushIdx + 1);
+    this.slack.send(user, data);
   });
 };
 
