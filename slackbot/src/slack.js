@@ -1,21 +1,22 @@
 'use strict';
 
 const slack = require('@slack/client');
-const R = require('ramda');
 
 const BufferedWorker = require('./util/buffered-worker');
+const F = require('./util/functions');
 
-const EVENTS = ['DM_RECEIVED'];
 const MESSAGE_CHAR_LIMIT = 4000;
 const MESSAGE_PREFIX = '```';
 const MESSAGE_SUFFIX = '```';
 
+Slack.EVENTS = F.toMap([
+  'DM_RECEIVED'
+], event => event);
+
 function Slack(apiToken) {
   this.rtm = new slack.RtmClient(apiToken);
   this.userInfos = {};
-  this.eventHandlers = R.zipObj(
-    EVENTS,
-    EVENTS.map(() => []));
+  this.eventHandlers = F.toMap(Object.keys(Slack.EVENTS), () => []);
 
   this._init();
 }
@@ -142,7 +143,5 @@ function decorateMessageText(text) {
 Slack.prototype.start = function() {
   this.rtm.start();
 };
-
-Slack.EVENTS = R.zipObj(EVENTS, EVENTS);
 
 module.exports = Slack;

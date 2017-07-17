@@ -1,11 +1,11 @@
 'use strict';
 
-const R = require('ramda');
-
 const Session = require('./session');
-const BufferedWorker = require('./util/buffered-worker');
+const F = require('./util/functions');
 
-const EVENTS = ['DATA'];
+Moo.EVENTS = F.toMap([
+  'DATA'
+], event => event);
 
 function Moo(connectionString) {
   var [host, port] = connectionString.split(':');
@@ -15,11 +15,8 @@ function Moo(connectionString) {
 
   this.host = host;
   this.port = port;
-  this.eventHandlers = R.zipObj(
-    EVENTS,
-    EVENTS.map(() => []));
-  this.sendBuffers = {};
   this.sessions = {};
+  this.eventHandlers = F.toMap(Object.keys(Moo.EVENTS), () => []);
 }
 
 Moo.prototype.on = function(event, cb) {
@@ -27,40 +24,22 @@ Moo.prototype.on = function(event, cb) {
 };
 
 Moo.prototype.send = function(user, input) {
-  var buffer = this.sendBuffers[user];
-  if (!buffer) {
-    buffer = new BufferedWorker({
-      extract: queue => queue.pop(),
-      execute: payload =>
-        this._getSession(user)
-          .then(session => session.send(payload))
-    });
-    this.sendBuffers[user] = buffer;
-  }
-  buffer.enqueue(input);
-};
-
-Moo.prototype._getSession = function(user) {
   var session = this.sessions[user];
-  if (!session) {
-    // TODO: resolve playerName from moo db
-    session = Promise.resolve(user)
-      .then(playerName => {
-        var session = new Session(playerName, {
-          host: this.host,
-          port: this.port
-        });
-        session.on(Session.EVENTS.DATA, data => {
-          this.eventHandlers.DATA
-            .forEach(handler => handler(user, data));
-        });
-        return session;
-      });
+  if (!session || session.destroyed) {
+    session = new Session(this.host, this.port, this._resolvePlayer(user));
+    session.on(Session.EVENTS.DATA, data => {
+      this.eventHandlers.DATA
+        .forEach(handler => handler(user, data));
+    });
     this.sessions[user] = session;
   }
-  return session;
+
+  session.send(input);
 };
 
-Moo.EVENTS = R.zipObj(EVENTS, EVENTS);
+Moo.prototype._resolvePlayer = async function(/* user */) {
+  // TODO: resolve playerName from moo db
+  return null;
+};
 
 module.exports = Moo;

@@ -1,21 +1,23 @@
 'use strict';
 
 const net = require('net');
-const R = require('ramda');
 
 const BufferedWorker = require('./util/buffered-worker');
+const F = require('./util/functions');
 
-const EVENTS = ['DATA'];
+Session.EVENTS = F.toMap([
+  'DATA'
+], event => event);
 
-function Session(playerName, serverAddress) {
-  this.playerName = playerName;
-  this.serverAddress = serverAddress;
+function Session(serverHost, serverPort, playerName) {
+  this.serverHost = serverHost;
+  this.serverPort = serverPort;
+  this.playerNamePromise = Promise.resolve(playerName);
   this.sendBuffer = null;
   this.receiveBuffer = null;
   this.socket = null;
-  this.eventHandlers = R.zipObj(
-    EVENTS,
-    EVENTS.map(() => []));
+  this.connected = false;
+  this.eventHandlers = F.toMap(Object.keys(Session.EVENTS), () => []);
 }
 
 Session.prototype.on = function(event, cb) {
@@ -23,59 +25,87 @@ Session.prototype.on = function(event, cb) {
 };
 
 Session.prototype.send = function(input) {
-  this._getSendBuffer().enqueue(input);
-};
+  this._sanityCheck();
 
-Session.prototype._getSendBuffer = function() {
   if (!this.sendBuffer) {
     this.sendBuffer = new BufferedWorker({
       extract: queue => queue.pop(),
-      execute: payload =>
-        // TODO: Login with playerName first
-        this._getSocket()
-          .then(socket => new Promise((resolve, reject) => {
-            try {
-              socket.write(`${payload}\n`, 'utf8', resolve);
-            } catch (error) {
-              reject({error, socket});
-            }
-          }))
-          .catch(({error, socket}) => {
-            if (socket) {
-              socket.destroy();
-            }
-            this.socket = null;
-            throw error;
-          })
+      execute: async payload => {
+        try {
+          var socket = await this._getConnection();
+          await writeSocket(socket, `${payload}\n`);
+        } catch (error) {
+          this._destroy();
+          throw error;
+        }
+      }
     });
   }
-  return this.sendBuffer;
+
+  this.sendBuffer.enqueue(input);
 };
 
-Session.prototype._getSocket = function() {
+Session.prototype._getConnection = async function() {
+  this._sanityCheck();
+
   if (!this.socket) {
-    this.socket = new Promise((resolve, reject) => {
-      var socket = new net.Socket();
-      socket.setEncoding('utf8');
-      var onConnect = () => {
-        socket.removeListener('error', onError);
-        resolve(socket);
-      };
-      var onError = error => {
-        socket.removeListener('error', onError);
-        reject({error, socket});
-      };
-      socket.on('connect', onConnect);
-      socket.on('error', onError);
-      socket.on('data', data => {
-        this._getReceiveBuffer().enqueue(data);
-      });
-      socket.connect(
-        this.serverAddress.port,
-        this.serverAddress.host);
+    // Connect
+    await new Promise((resolve, reject) => {
+      this.socket = this._createSocket(
+        socket => {
+          this.connected = true;
+          resolve(socket);
+        }, reject);
     });
+
+    // Login
+    var playerName = await this.playerNamePromise;
+    if (playerName) {
+      await writeSocket(this.socket, `connect ${playerName}\n`);
+    }
   }
+
+  if (!this.connected) {
+    this._destroy();
+    throw Error('Unexpected multiple callers to _getConnection() detected!');
+  }
+
   return this.socket;
+};
+
+async function writeSocket(socket, data) {
+  return new Promise((resolve, reject) => {
+    try {
+      socket.write(data, 'utf8', resolve);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+Session.prototype._createSocket = function(resolve, reject) {
+  var socket = new net.Socket();
+
+  var onConnect = () => {
+    socket.removeListener('error', onError);
+    resolve(socket);
+  };
+  var onError = error => {
+    socket.destroy();
+    reject(error);
+  };
+
+  socket.on('connect', onConnect);
+  socket.on('error', onError);
+  socket.on('close', () => this._destroy());
+  socket.on('data', data => {
+    this._getReceiveBuffer().enqueue(data);
+  });
+  socket.setEncoding('utf8');
+
+  socket.connect(this.serverPort, this.serverHost);
+
+  return socket;
 };
 
 Session.prototype._getReceiveBuffer = function() {
@@ -103,6 +133,18 @@ Session.prototype._getReceiveBuffer = function() {
   return this.receiveBuffer;
 };
 
-Session.EVENTS = R.zipObj(EVENTS, EVENTS);
+Session.prototype._destroy = function() {
+  if (this.socket) {
+    this.socket.destroy();
+  }
+  this.destroyed = true;
+  this.socket = null;
+};
+
+Session.prototype._sanityCheck = function() {
+  if (this.destroyed) {
+    throw Error('Session is already destroyed');
+  }
+};
 
 module.exports = Session;

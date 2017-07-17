@@ -6,40 +6,37 @@ function BufferedWorker({extract, execute}) {
   this.extract = extract;
   this.execute = execute;
   this.queue = new Deque();
-  this.task = null;
+  this.running = false;
   this.previous = null;
 }
 
 BufferedWorker.prototype.enqueue = function(...data) {
   this.queue.push(...data);
-  if (!this.task) {
-    this.task = this._work();
+  if (!this.running) {
+    this._run();
   }
 };
 
-BufferedWorker.prototype._work = function() {
-  // Promise.resolve() so that method returns right away
-  return Promise.resolve().then(() => {
-    if (this.queue.isEmpty()) {
-      this.task = null;
-      return null;
-    }
+BufferedWorker.prototype._run = async function() {
+  if (this.queue.isEmpty()) {
+    this.running = false;
+    return;
+  }
 
-    var payload = this.extract(readOnlyQueue(this.queue), this.previous);
-    var execution = this.execute(payload, this.previous);
+  this.running = true;
 
-    return Promise.resolve(execution).then(
-      result => {
-        this.previous = {payload, result};
-        return this._work();
-      },
-      error => {
-        console.error(error);
-        this.queue.clear();
-        this.task = null;
-        this.previous = null;
-      });
-  });
+  try {
+    var payload = await this.extract(readOnlyQueue(this.queue), this.previous);
+    var result = await this.execute(payload, this.previous);
+    this.previous = {payload, result};
+    return this._run();
+
+  } catch (error) {
+    console.error(error);
+    this.queue.clear();
+    this.running = false;
+    this.previous = null;
+  }
 };
 
 function readOnlyQueue(deque) {

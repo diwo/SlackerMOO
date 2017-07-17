@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "test": "true",
-    "lint": "find src/ -name '*.js' | xargs jshint",
+    "lint": "find src/ -name '*.js' | xargs eslint",
     "start": "node src/server.js",
     "inspect": "node --inspect src/server.js"
   },
@@ -25,12 +25,6 @@
     "ramda": "^0.24.1"
   },
   "devDependencies": {
-    "jshint": "^2.9.5"
-  },
-  "jshintConfig": {
-    "strict": "global",
-    "esversion": 6,
-    "node": true,
-    "unused": true
+    "eslint": "^4.2.0"
   }
 }
