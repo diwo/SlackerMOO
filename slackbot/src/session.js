@@ -2,6 +2,7 @@
 
 const net = require('net');
 
+const MCP = require('./mcp');
 const BufferedWorker = require('./util/buffered-worker');
 const F = require('./util/functions');
 
@@ -13,6 +14,7 @@ function Session(serverHost, serverPort, playerName) {
   this.serverHost = serverHost;
   this.serverPort = serverPort;
   this.playerNamePromise = Promise.resolve(playerName);
+  this.mcp = new MCP();
   this.sendBuffer = null;
   this.receiveBuffer = null;
   this.socket = null;
@@ -33,7 +35,10 @@ Session.prototype.send = function(input) {
       execute: async payload => {
         try {
           var socket = await this._getConnection();
-          await writeSocket(socket, `${payload}\n`);
+          var filtered = payload.split('\n')
+            .map(line => this.mcp.filterOutgoing(line))
+            .join('\n');
+          await writeSocket(socket, `${filtered}\n`);
         } catch (error) {
           this._destroy();
           throw error;
@@ -125,8 +130,12 @@ Session.prototype._getReceiveBuffer = function() {
         return {data, remaining};
       },
       execute: ({data}) => {
+        var filtered = data.split('\n')
+          .map(line => this.mcp.filterIncoming(line))
+          .filter(filteredLine => filteredLine !== null)
+          .join('\n');
         this.eventHandlers.DATA
-          .forEach(handler => handler(data));
+          .forEach(handler => handler(filtered));
       }
     });
   }
