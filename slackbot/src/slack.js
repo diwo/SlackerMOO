@@ -10,7 +10,8 @@ const MESSAGE_PREFIX = '```';
 const MESSAGE_SUFFIX = '```';
 
 Slack.EVENTS = F.toMap([
-  'DM_RECEIVED'
+  'DM_RECEIVED',
+  'GROUP_MESSAGE_RECEIEVED'
 ], event => event);
 
 function Slack(apiToken) {
@@ -29,23 +30,29 @@ Slack.prototype._init = function() {
   this.rtm.on(slack.RTM_EVENTS.MESSAGE, ({channel, user:userId, text, subtype}) => {
     var user = this.rtm.dataStore.users[userId];
 
+    var userProfile = {
+      id: user.id,
+      name: user.name,
+      real_name: user.real_name,
+      email: user.profile.email,
+      first_name: user.profile.first_name,
+      last_name: user.profile.last_name
+    };
+
     var isDirectMessage = channel.match(/^D/);
+    var isGroupOrChannel = channel.match(/^[GC]/);
+
     if (isDirectMessage && !subtype) {
       var userInfo = this._getUserInfo(user.name);
       userInfo.channel = channel;
       userInfo.startNewMessage = true;
 
-      var userProfile = {
-        id: user.id,
-        name: user.name,
-        real_name: user.real_name,
-        email: user.profile.email,
-        first_name: user.profile.first_name,
-        last_name: user.profile.last_name
-      };
-
       this.eventHandlers.DM_RECEIVED
         .forEach(handler => handler(text, userProfile));
+    } else if (isGroupOrChannel) {
+      var groupOrChannel = this.rtm.dataStore.groups[channel] || this.rtm.dataStore.groups[channel]
+      this.eventHandlers.GROUP_MESSAGE_RECEIEVED
+        .forEach(handler => handler(text, userProfile, groupOrChannel));
     }
   });
 };
@@ -69,6 +76,14 @@ Slack.prototype.send = function(user, text) {
   }
 
   sender.enqueue(...text.split('\n'));
+};
+
+Slack.prototype.sendChannel = async function(channel, text) {
+  try {
+    await this.rtm.sendMessage(text, channel);
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 function workerExtract(isStartNewMessage) {

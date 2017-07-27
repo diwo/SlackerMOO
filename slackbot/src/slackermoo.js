@@ -18,6 +18,25 @@ SlackerMoo.prototype._init = function() {
   this.moo.on(Moo.EVENTS.DATA, (user, data) => {
     this.slack.send(user, data);
   });
+
+  this.slack.on(Slack.EVENTS.GROUP_MESSAGE_RECEIEVED,
+    (text, userProfile, channel) => {
+      if (text.startsWith('!')) {
+        var [channelId, channelName, userName, userFirstName, command] =
+          [channel.id, channel.name,
+            userProfile.name, userProfile.first_name,
+            text.slice(1)];
+        this.moo.botSend(
+          `= ${channelId} ${channelName} ${userName} ${userFirstName} ${command}`);
+      }
+  });
+
+  this.moo.on(Moo.EVENTS.BOT_DATA, data => {
+    var [prefix, channel, ...rest] = data.split(' ');
+    if (prefix == '#SLACK#') {
+      this.slack.sendChannel(channel, rest.join(' '));
+    }
+  });
 };
 
 function toAscii(text) {

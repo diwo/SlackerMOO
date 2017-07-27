@@ -4,7 +4,8 @@ const Session = require('./session');
 const F = require('./util/functions');
 
 Moo.EVENTS = F.toMap([
-  'DATA'
+  'DATA',
+  'BOT_DATA'
 ], event => event);
 
 function Moo(connectionString) {
@@ -16,8 +17,24 @@ function Moo(connectionString) {
   this.host = host;
   this.port = port;
   this.sessions = {};
+  this.botSession = null;
   this.eventHandlers = F.toMap(Object.keys(Moo.EVENTS), () => []);
+
+  this.botInit();
 }
+
+Moo.prototype.botInit = function() {
+  this.botSession = new Session(this.host, this.port, 'Slackerbot');
+  this.botSession.on(Session.EVENTS.DATA, data => {
+    this.eventHandlers.BOT_DATA
+      .forEach(handler => handler(data));
+  });
+  this.botSession.send();
+};
+
+Moo.prototype.botSend = function(text) {
+  this.botSession.send(text);
+};
 
 Moo.prototype.on = function(event, cb) {
   this.eventHandlers[event].push(cb);
