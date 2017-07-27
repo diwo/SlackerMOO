@@ -14,7 +14,9 @@ function Session(serverHost, serverPort, playerName) {
   this.serverHost = serverHost;
   this.serverPort = serverPort;
   this.playerNamePromise = Promise.resolve(playerName);
-  this.mcp = new MCP();
+  this.mcp = new MCP({
+    send: Session.prototype.send.bind(this)
+  });
   this.sendBuffer = null;
   this.receiveBuffer = null;
   this.socket = null;

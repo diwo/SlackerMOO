@@ -121,13 +121,13 @@ describe('MCP', () => {
 
     beforeEach(() => {
       execution = {};
-      instance = {
-        _generateAuthKey: function() {
-          this.authKey = authKey;
-        },
-        _sendMessage: function(name, keyVals) {
-          execution['_sendMessage'] = {name, keyVals};
-        }
+      instance = {};
+      MCP.call(instance, {send: null});
+      instance._generateAuthKey = function() {
+        this.authKey = authKey;
+      };
+      instance._sendMessage = function(name, keyVals) {
+        execution['_sendMessage'] = {name, keyVals};
       };
     });
 
@@ -171,7 +171,7 @@ describe('MCP', () => {
     var instance;
 
     beforeEach(() => {
-      instance = {}
+      instance = {};
     });
 
     it('sets the authentication key', () => {
@@ -186,7 +186,7 @@ describe('MCP', () => {
     beforeEach(() => {
       execution = {};
       instance = {};
-      MCP.call(instance);
+      MCP.call(instance, {send: null});
       instance._processMessage = function(name, keyVals) {
         execution['_processMessage'] = {name, keyVals};
       };
@@ -311,7 +311,7 @@ describe('MCP', () => {
         assert.throws(
           () => MCP.prototype._handleMessageStart.call(instance, line),
           /Missing value/i);
-      })
+      });
 
       it('throws error if unquoted value has colon', () => {
         var line = `net ${instance.authKey} addr: 3e:15:c2:ec:b3:00`;
@@ -415,7 +415,7 @@ describe('MCP', () => {
 
     beforeEach(() => {
       instance = {};
-      MCP.call(instance);
+      MCP.call(instance, {send: null});
       instance.multilineMessages[dataTag] = {
         name: 'send', keyVals: {}
       };
@@ -489,7 +489,7 @@ describe('MCP', () => {
     beforeEach(() => {
       execution = {};
       instance = {};
-      MCP.call(instance);
+      MCP.call(instance, {send: null});
       instance._processMessage = function(name, keyVals) {
         execution['_processMessage'] = {name, keyVals};
       };

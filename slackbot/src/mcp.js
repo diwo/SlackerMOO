@@ -1,17 +1,42 @@
 'use strict';
 
 const crypto = require('crypto');
+const F = require('./util/functions');
+const McpNegotiate = require('./mcp-packages/mcp-negotiate');
 
 const OUT_OF_BAND_PREFIX = '#$#';
 const QUOTE_PREFIX = '#$"';
 const RESERVED_PREFIXES = [OUT_OF_BAND_PREFIX, QUOTE_PREFIX];
 const DATA_TAG_KEY = '_data-tag';
+
 const SUPPORTED_VERSION = '2.1';
+const SUPPORTED_PACKAGES = [McpNegotiate];
 
 // http://www.moo.mud.org/mcp/mcp2.html
-function MCP() {
+function MCP({send, enabledPackages = []}) {
+  this.rawSend = send;
   this.authKey = null;
   this.multilineMessages = {};
+  this.packages = {};
+
+  var supportedPackagesMap = new Map(
+    SUPPORTED_PACKAGES.map(cFunc =>
+      ([cFunc.prototype.packageName, cFunc])));
+
+  var allEnabledPackages = [{
+    name: 'mcp-negotiate',
+    args: {
+      packages: ['mcp-negotiate', ...enabledPackages.map(pkg => pkg.name)]
+    }
+  }, ...enabledPackages];
+
+  for (let enabledPackage of allEnabledPackages) {
+    let packageConstructor = supportedPackagesMap.get(enabledPackage.name);
+    let mergedArgs = F.merge(enabledPackage.args, {
+      send: MCP.prototype._sendMessage.bind(this)
+    });
+    this.packages[enabledPackage.name] = new packageConstructor(mergedArgs);
+  }
 }
 
 MCP.prototype.filterIncoming = function(line) {
@@ -62,11 +87,12 @@ MCP.prototype._startup = function(line) {
     throw Error('Server version too high');
   }
   this._generateAuthKey();
-  return this._sendMessage('mcp', {
+  this._sendMessage('mcp', {
     'authentication-key': this.authKey,
     version: SUPPORTED_VERSION,
     to: SUPPORTED_VERSION
   });
+  return this.packages['mcp-negotiate'].enable();
 };
 
 MCP.prototype._generateAuthKey = function() {
@@ -130,9 +156,34 @@ MCP.prototype._processMessage = function(name, keyVals) {
   // TODO
 };
 
-// eslint-disable-next-line no-unused-vars
-MCP.prototype._sendMessage = async function(name, keyVals) {
-  // TODO
+MCP.prototype._sendMessage = function(name, keyVals) {
+  var multiline = Object.values(keyVals)
+    .some(val => val instanceof Array);
+
+  if (multiline) {
+    // TODO
+    throw Error('Multiline currently unsupported');
+  }
+
+  // let keyValsString = '';
+  // for (let [key, val] of Object.entries(keyVal)) {
+  //   let requireQuoting = val.match(/[ "\\:*]/);
+  //   if (requireQuoting) {
+  //     keyValsString += 
+  //   }
+  // }
+
+  var keyValsString = Object.entries(keyVals)
+    .map(([key, val]) => {
+      let requireQuoting = val.match(/[ "\\:*]/);
+      if (requireQuoting) {
+        return `${key}: ${quote(val)}`;
+      }
+        return `${key}: ${val}`;
+    })
+    .join(' ');
+
+  this.rawSend(`${name} ${this.authKey} ${keyValsString}`);
 };
 
 function compareVersions(v1, v2) {
